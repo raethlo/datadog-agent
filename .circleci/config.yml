@@ -201,6 +201,37 @@ jobs:
           name: generate doxygen documentation
           command: inv -e rtloader.generate-doc
 
+  macos_tests:
+    macos:
+      xcode: 10.1.0
+    environment:
+      GO_VERSION: "1.13.8"
+    working_directory: ~/go/src/github.com/DataDog/datadog-agent
+    steps:
+      - checkout
+      - run: brew update
+      - run:
+          name: Setup runner
+          command: |
+            brew uninstall python@2 # Remove python2, we don't need it
+            brew upgrade python # Upgrade python3 to latest avilable on brew
+            ln -s /usr/local/bin/pip3 /usr/local/bin/pip # Use pip3 by default
+
+            mkdir -p $HOME/go
+
+            brew install gimme
+
+            pip install -r requirements.txt
+      - run:
+          name: Run tests
+          command: |
+            eval `gimme $GO_VERSION`
+            export GOPATH="$HOME/go"
+            export PATH="$GOPATH/bin:$PATH"
+
+            inv -e deps --dep-vendor-only
+            inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
+
   macos_build:
     macos:
       xcode: 10.1.0
@@ -255,7 +286,10 @@ workflows:
   test_and_build:
     jobs:
       - checkout_code
-      - macos_build
+      - macos_tests
+      - macos_build:
+          requires:
+            - macos_tests
       - dependencies:
           requires:
             - checkout_code
